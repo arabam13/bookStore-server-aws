@@ -20,6 +20,9 @@ dependencies:
   express-async-handler:
     specifier: ^1.2.0
     version: 1.2.0
+  fs:
+    specifier: 0.0.1-security
+    version: 0.0.1-security
   jsonwebtoken:
     specifier: ^9.0.2
     version: 9.0.2
@@ -379,6 +382,10 @@ packages:
   /fresh@0.5.2:
     resolution: {integrity: sha512-zJ2mQYM18rEFOudeV4GShTGIQ7RbzA7ozbU9I/XBpm7kqgMywgmylMwXHxZJmkVoYkna9d2pVXVXPdYTP9ej8Q==}
     engines: {node: '>= 0.6'}
+    dev: false
+
+  /fs@0.0.1-security:
+    resolution: {integrity: sha512-3XY9e1pP0CVEUCdj5BmfIZxRBTSDycnbqhIOGec9QYtmVH2fbLpj86CFWkrNOkt/Fvty4KZG5lTglL9j/gJ87w==}
     dev: false
 
   /fsevents@2.3.3:

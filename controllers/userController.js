@@ -1,7 +1,7 @@
-import bcrypt from 'bcryptjs';
-import asyncHandler from 'express-async-handler';
-import UserModel from '../models/userModel.js';
-import { generateToken } from '../utils/functions.js';
+import bcrypt from "bcryptjs";
+import asyncHandler from "express-async-handler";
+import UserModel from "../models/userModel.js";
+import { generateToken } from "../utils/functions.js";
 
 export const userController = {
   getUsers: asyncHandler(async (req, res) => {
@@ -13,12 +13,12 @@ export const userController = {
     if (!req.body.email || !req.body.password) {
       return res
         .status(400)
-        .send({ message: 'Email and password are required' });
+        .send({ message: "Email and password are required" });
     }
     //check if user already exists
     const user = await UserModel.findOne({ email: req.body.email });
     if (user) {
-      return res.status(400).send({ message: 'User already exists' });
+      return res.status(400).send({ message: "User already exists" });
     }
 
     const newUser = await UserModel.create({
@@ -28,7 +28,7 @@ export const userController = {
     res.send({
       _id: newUser._id,
       email: newUser.email,
-      token: generateToken(newUser),
+      token: "Bearer " + generateToken(newUser),
     });
   }),
 
@@ -36,7 +36,7 @@ export const userController = {
     if (!req.body.email || !req.body.password) {
       return res
         .status(400)
-        .send({ message: 'Email and password are required' });
+        .send({ message: "Email and password are required" });
     }
     const user = await UserModel.findOne({ email: req.body.email });
     if (user) {
@@ -44,10 +44,10 @@ export const userController = {
         return res.send({
           _id: user._id,
           // email: user.email,
-          token: generateToken(user),
+          token: "Bearer " + generateToken(user),
         });
       }
     }
-    return res.status(401).send({ message: 'Invalid email or password' });
+    return res.status(401).send({ message: "Invalid email or password" });
   }),
 };

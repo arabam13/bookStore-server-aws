@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
 
 export const generateToken = (user) => {
   return jwt.sign(
@@ -6,9 +6,9 @@ export const generateToken = (user) => {
       _id: user._id,
       isAdmin: user.isAdmin,
     },
-    process.env.JWT_SECRET || 'somethingsecret',
+    process.env.JWT_SECRET || "somethingsecret",
     {
-      expiresIn: '24h',
+      expiresIn: "24h",
     }
   );
 };
@@ -19,9 +19,10 @@ export const isAuth = (req, res, next) => {
     const token = authorization.slice(7, authorization.length); // Bearer XXXXXX
     jwt.verify(token, process.env.JWT_SECRET, (err, decode) => {
       if (err) {
-        res.status(403).send({ message: 'Invalid Token' });
+        res.status(403).send({ message: "Invalid Token" });
       } else {
-        req.user = decode;
+        req.auth = decode;
+        // console.log("req.auth: ", req.auth);
         next();
       }
     });
@@ -33,9 +34,9 @@ export const isAuth = (req, res, next) => {
 };
 
 export const isAdmin = (req, res, next) => {
-  if (req.user && req.user.isAdmin) {
+  if (req.auth && req.auth.isAdmin) {
     next();
   } else {
-    res.status(403).send({ message: 'Invalid Admin Token' });
+    res.status(403).send({ message: "Invalid Admin Token" });
   }
 };
