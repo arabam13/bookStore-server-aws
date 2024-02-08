@@ -5,7 +5,6 @@ import BookModel from "../models/bookModel.js";
 export const bookController = {
   createBook: asyncHandler(async (req, res) => {
     // console.log(req.file);
-    // console.log(req.protocol);
     // console.log(req.auth);
     try {
       const userId = req.auth._id;
@@ -15,8 +14,6 @@ export const bookController = {
       const genre = req.body.genre;
       const ratings = [];
       const averageRating = 0;
-      // const host = req.get("host");
-      // const imageUrl = `${req.protocol}://${host}/images/${req.file.filename}`;
       const imageUrl = `/images/${req.file.filename}`;
 
       const newBook = await BookModel.create({
@@ -29,6 +26,7 @@ export const bookController = {
         averageRating,
         imageUrl,
       });
+      // return res.status(201).json({ message: "Book created successefully" });
       return res.status(201).json(newBook);
     } catch (err) {
       return res.status(500).json({ message: "Something went wrong" });
@@ -37,6 +35,14 @@ export const bookController = {
   updateBook: asyncHandler(async (req, res) => {
     try {
       const existingBook = await BookModel.findById(req.params.id);
+      if (!existingBook) {
+        return res.status(404).json({ message: "Book not found" });
+      }
+      if (existingBook.userId.toString() !== req.auth._id.toString()) {
+        return res
+          .status(403)
+          .json({ message: "You are not authorized to update" });
+      }
       if (req.file) {
         if (existingBook.imageUrl) {
           // console.log(existingBook.imageUrl);
@@ -76,6 +82,11 @@ export const bookController = {
       if (!existingBook) {
         return res.status(404).json({ message: "Book not found" });
       }
+      if (existingBook.userId.toString() !== req.auth._id.toString()) {
+        return res
+          .status(403)
+          .json({ message: "You are not authorized to delete" });
+      }
       if (existingBook.imageUrl) {
         // console.log(existingBook.imageUrl);
         try {
@@ -88,7 +99,6 @@ export const bookController = {
 
       await existingBook.deleteOne();
       res.send({ message: "Book Deleted" });
-      // return res.status(200).json({ message: "Book updated successfully" });
     } catch (err) {
       return res.status(500).json({ message: "Something went wrong. " + err });
     }
@@ -103,8 +113,11 @@ export const bookController = {
   }),
   getBook: asyncHandler(async (req, res) => {
     try {
-      const book = await BookModel.findById(req.params.id);
-      return res.status(201).json(book);
+      const existingBook = await BookModel.findById(req.params.id);
+      if (!existingBook) {
+        return res.status(404).json({ message: "Book not found" });
+      }
+      return res.status(201).json(existingBook);
     } catch (err) {
       return res.status(500).json({ message: "Something went wrong" });
     }

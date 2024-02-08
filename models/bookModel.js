@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 // userId : String - identifiant MongoDB unique de l'utilisateur qui a créé le livre
 // title : String - titre du livre
@@ -18,7 +18,7 @@ const ratingSchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     grade: { type: Number, required: true },
@@ -32,11 +32,11 @@ const bookSchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     title: { type: String, required: true, unique: true },
-    author: { type: String, required: true, unique: true },
+    author: { type: String, required: true },
     imageUrl: { type: String, required: true },
     year: { type: Number, required: true },
     genre: { type: String, required: true },
@@ -48,5 +48,5 @@ const bookSchema = new mongoose.Schema(
   }
 );
 
-const BookModel = mongoose.model('Book', bookSchema);
+const BookModel = mongoose.model("Book", bookSchema);
 export default BookModel;
