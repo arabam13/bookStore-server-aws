@@ -4,10 +4,10 @@ import UserModel from "../models/userModel.js";
 import { generateToken } from "../utils/functions.js";
 
 export const userController = {
-  getUsers: asyncHandler(async (req, res) => {
-    const users = await UserModel.find({});
-    res.send({ users });
-  }),
+  // getUsers: asyncHandler(async (req, res) => {
+  //   const users = await UserModel.find({});
+  //   res.send({ users });
+  // }),
 
   signUp: asyncHandler(async (req, res) => {
     if (!req.body.email || !req.body.password) {
@@ -26,9 +26,7 @@ export const userController = {
       password: bcrypt.hashSync(req.body.password),
     });
     res.send({
-      _id: newUser._id,
-      email: newUser.email,
-      token: "Bearer " + generateToken(newUser),
+      message: "User created",
     });
   }),
 
@@ -42,9 +40,10 @@ export const userController = {
     if (user) {
       if (bcrypt.compare(req.body.password, user.password)) {
         return res.send({
-          _id: user._id,
+          userId: user._id,
           // email: user.email,
-          token: "Bearer " + generateToken(user),
+          // token: "Bearer " + generateToken(user),
+          token: generateToken(user),
         });
       }
     }

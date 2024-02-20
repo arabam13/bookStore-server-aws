@@ -21,7 +21,7 @@ const ratingSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    grade: { type: Number, required: true },
+    grade: { type: Number, required: true, minmum: 0, maximum: 5 },
   },
   {
     timestamps: true,

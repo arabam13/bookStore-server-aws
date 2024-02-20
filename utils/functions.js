@@ -4,7 +4,7 @@ export const generateToken = (user) => {
   return jwt.sign(
     {
       _id: user._id,
-      isAdmin: user.isAdmin,
+      // isAdmin: user.isAdmin,
     },
     process.env.JWT_SECRET || "somethingsecret",
     {
@@ -22,7 +22,6 @@ export const isAuth = (req, res, next) => {
         res.status(403).send({ message: "Invalid Token" });
       } else {
         req.auth = decode;
-        // console.log("req.auth: ", req.auth);
         next();
       }
     });
@@ -33,10 +32,10 @@ export const isAuth = (req, res, next) => {
   }
 };
 
-export const isAdmin = (req, res, next) => {
-  if (req.auth && req.auth.isAdmin) {
-    next();
-  } else {
-    res.status(403).send({ message: "Invalid Admin Token" });
-  }
-};
+// export const isAdmin = (req, res, next) => {
+//   if (req.auth && req.auth.isAdmin) {
+//     next();
+//   } else {
+//     res.status(403).send({ message: "Invalid Admin Token" });
+//   }
+// };

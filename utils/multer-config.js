@@ -1,4 +1,5 @@
 import multer from "multer";
+import { v4 as uuid } from "uuid";
 
 const MIME_TYPE = {
   "image/jpg": "jpg",
@@ -9,17 +10,21 @@ const MIME_TYPE = {
 
 const storage = multer.diskStorage({
   destination: function (req, file, callback) {
+    const isValid = MIME_TYPE[file.mimetype];
+    if (!isValid) {
+      const error = new Error("Invalid mime type");
+      return callback(error, "./images");
+    }
+
     callback(null, "./images");
   },
   filename: (req, file, callback) => {
-    // console.log({ file });
-    // console.log("fileOriginalName: " + file.originalname);
     const filename = file.originalname.split(" ").join("_");
     const filenameArray = filename.split(".");
     filenameArray.pop();
     const filenameWithoutExtention = filenameArray.join(".");
     const extension = MIME_TYPE[file.mimetype];
-    callback(null, filenameWithoutExtention + Date.now() + "." + extension);
+    callback(null, filenameWithoutExtention + uuid() + "." + extension);
   },
 });
 

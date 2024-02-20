@@ -1,11 +1,11 @@
-import express from 'express';
+import express from "express";
 
-import { userController } from '../controllers/userController.js';
-import { isAdmin, isAuth } from '../utils/functions.js';
+import { userController } from "../controllers/userController.js";
+// import { isAdmin, isAuth } from "../utils/functions.js";
 
 export const userRouter = express.Router();
 
-userRouter.get('/users', isAuth, isAdmin, userController.getUsers);
+// userRouter.get('/users', isAuth, isAdmin, userController.getUsers);
 
-userRouter.post('/signup', userController.signUp);
-userRouter.post('/login', userController.login);
+userRouter.post("/signup", userController.signUp);
+userRouter.post("/login", userController.login);
