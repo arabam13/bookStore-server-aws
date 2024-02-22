@@ -1,13 +1,76 @@
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import crypto from "crypto";
+import dotenv from "dotenv";
 import asyncHandler from "express-async-handler";
-import fs from "fs";
-import path from "path";
 import sharp from "sharp";
 import BookModel from "../models/bookModel.js";
 
-const deleteImageIfError = (req) => {
-  if (req.file) {
-    fs.unlinkSync(path.join(process.cwd(), req.file.path));
-  }
+dotenv.config();
+
+const bucketName = process.env.AWS_BUCKET_NAME;
+const region = process.env.AWS_BUCKET_REGION;
+const accessKeyId = process.env.AWS_ACCESS_KEY;
+const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+// console.log({ region, bucketName, accessKeyId, secretAccessKey });
+
+const s3Client = new S3Client({
+  region,
+  credentials: {
+    accessKeyId,
+    secretAccessKey,
+  },
+});
+// console.log({ s3Client });
+const generateFileName = (bytes = 32) =>
+  crypto.randomBytes(bytes).toString("hex");
+
+const sendImageToAWSAndGetImageUrl = async (req) => {
+  // console.log(req.file);
+  const fileBuffer = await sharp(req.file.buffer)
+    .resize({ height: 391, width: 456, fit: "contain" })
+    .toBuffer();
+
+  // Configure the upload details to send to S3
+  const fileName = generateFileName();
+  const uploadParams = {
+    Bucket: bucketName,
+    Key: fileName,
+    Body: fileBuffer,
+    ContentType: req.file.mimetype,
+  };
+
+  // Send the upload to S3
+  await s3Client.send(new PutObjectCommand(uploadParams));
+  //generate URL for post created
+  const imageUrl = await getSignedUrl(
+    s3Client,
+    new GetObjectCommand({
+      Bucket: bucketName,
+      Key: fileName,
+    })
+    // { expiresIn: 60 } // 60 seconds
+  );
+  return imageUrl;
+};
+
+const deleteImageFromAws = async (existingBook) => {
+  console.log({ bucketName });
+  console.log("existingBook.imageUrl2: ", existingBook.imageUrl);
+  // console.log({ s3Client });
+
+  const deleteParams = {
+    Bucket: bucketName,
+    Key: existingBook.imageUrl,
+  };
+
+  const data = await s3Client.send(new DeleteObjectCommand(deleteParams));
+  console.log({ data });
 };
 export const bookController = {
   bestRatingBooks: asyncHandler(async (req, res) => {
@@ -63,48 +126,32 @@ export const bookController = {
       const book = JSON.parse(req.body.book);
       const title = book.title;
       if (!title) {
-        deleteImageIfError(req);
+        // deleteImageIfError(req);
         return res.status(400).json({ message: "Title is required" });
       }
       const existingTitle = await BookModel.find({ title: title });
       if (existingTitle && existingTitle.length > 0) {
-        deleteImageIfError(req);
+        // deleteImageIfError(req);
         return res.status(400).json({ message: "Title already exists" });
       }
       const author = book.author;
       if (!author) {
-        deleteImageIfError(req.file);
+        // deleteImageIfError(req.file);
         return res.status(400).json({ message: "Author is required" });
       }
       const year = book.year;
       if (!year) {
-        deleteImageIfError(req);
+        // deleteImageIfError(req);
         return res.status(400).json({ message: "Year is required" });
       }
       const genre = book.genre;
       if (!genre) {
-        deleteImageIfError(req);
+        // deleteImageIfError(req);
         return res.status(400).json({ message: "Genre is required" });
       }
-      try {
-        //resize image
-        await sharp(path.join(process.cwd(), req.file.path))
-          .resize({
-            width: 391,
-            height: 456,
-          })
-          .toFile(
-            path.join(process.cwd(), "images", "resized_" + req.file.filename)
-          );
-        //delete original image
-        fs.unlinkSync(path.join(process.cwd(), req.file.path));
-      } catch (error) {
-        console.log(`An error occurred during processing: ${error}`);
-      }
-      const imageUrl = `${req.protocol}://${req.get("host")}/${path.join(
-        "images",
-        "resized_" + req.file.filename
-      )}`;
+
+      const imageUrl = await sendImageToAWSAndGetImageUrl(req);
+
       await BookModel.create({
         userId,
         title,
@@ -117,6 +164,7 @@ export const bookController = {
       });
       return res.status(201).json({ message: "Book created successefully" });
     } catch (err) {
+      // console.log(err);
       return res.status(500).json({ message: "Something went wrong" });
     }
   }),
@@ -132,47 +180,25 @@ export const bookController = {
           .status(403)
           .json({ message: "You are not authorized to update" });
       }
+      //if new file is uploaded
       if (req.file) {
         if (existingBook.imageUrl) {
           try {
-            fs.unlinkSync(
-              path.join(
-                process.cwd(),
-                existingBook.imageUrl.split("/").slice(-2).join("/")
-              )
-            );
-            // console.log("deleted");
+            deleteImageFromAws(existingBook);
+            existingBook.imageUrl = sendImageToAWSAndGetImageUrl(req);
+            const bookToUpdateWithJoinedFile = JSON.parse(req.body.book);
+            existingBook.title = bookToUpdateWithJoinedFile.title;
+            existingBook.author = bookToUpdateWithJoinedFile.author;
+            existingBook.year = bookToUpdateWithJoinedFile.year;
+            existingBook.genre = bookToUpdateWithJoinedFile.genre;
+            await existingBook.save();
+            return res
+              .status(200)
+              .json({ message: "Book updated successfully" });
           } catch (err) {
             console.log(err);
           }
         }
-        try {
-          //resize image
-          await sharp(path.join(process.cwd(), req.file.path))
-            .resize({
-              width: 391,
-              height: 456,
-            })
-            .toFile(
-              path.join(process.cwd(), "images", "resized_" + req.file.filename)
-            );
-          //delete original image
-          fs.unlinkSync(path.join(process.cwd(), req.file.path));
-        } catch (error) {
-          console.log(`An error occurred during processing: ${error}`);
-        }
-        const imageUrl = `${req.protocol}://${req.get("host")}/${path.join(
-          "images",
-          "resized_" + req.file.filename
-        )}`;
-        existingBook.imageUrl = imageUrl;
-        const bookToUpdateWithJoinedFile = JSON.parse(req.body.book);
-        existingBook.title = bookToUpdateWithJoinedFile.title;
-        existingBook.author = bookToUpdateWithJoinedFile.author;
-        existingBook.year = bookToUpdateWithJoinedFile.year;
-        existingBook.genre = bookToUpdateWithJoinedFile.genre;
-        await existingBook.save();
-        return res.status(200).json({ message: "Book updated successfully" });
       }
       existingBook.title = req.body.title;
       existingBook.author = req.body.author;
@@ -196,14 +222,22 @@ export const bookController = {
           .json({ message: "You are not authorized to delete" });
       }
       if (existingBook.imageUrl) {
+        // console.log("existingBook.imageUrl1: ", existingBook.imageUrl);
         try {
-          fs.unlinkSync(
-            path.join(
-              process.cwd(),
-              existingBook.imageUrl.split("/").slice(-2).join("/")
-            )
+          // deleteImageFromAws(existingBook);
+          console.log({ bucketName });
+          console.log("existingBook.imageUrl2: ", existingBook.imageUrl);
+          // console.log({ s3Client });
+
+          const deleteParams = {
+            Bucket: bucketName,
+            Key: existingBook.imageUrl,
+          };
+
+          const data = await s3Client.send(
+            new DeleteObjectCommand(deleteParams)
           );
-          // console.log("deleted");
+          console.log({ data });
         } catch (err) {
           console.log(err);
         }
