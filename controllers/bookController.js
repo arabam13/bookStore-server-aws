@@ -4,6 +4,11 @@ import path from "path";
 import sharp from "sharp";
 import BookModel from "../models/bookModel.js";
 
+const deleteImageIfError = (req) => {
+  if (req.file) {
+    fs.unlinkSync(path.join(process.cwd(), req.file.path));
+  }
+};
 export const bookController = {
   bestRatingBooks: asyncHandler(async (req, res) => {
     try {
@@ -58,33 +63,35 @@ export const bookController = {
       const book = JSON.parse(req.body.book);
       const title = book.title;
       if (!title) {
+        deleteImageIfError(req);
         return res.status(400).json({ message: "Title is required" });
       }
       const existingTitle = await BookModel.find({ title: title });
       if (existingTitle && existingTitle.length > 0) {
-        if (req.file) {
-          fs.unlinkSync(process.cwd() + "/" + req.file.path);
-        }
+        deleteImageIfError(req);
         return res.status(400).json({ message: "Title already exists" });
       }
       const author = book.author;
       if (!author) {
+        deleteImageIfError(req.file);
         return res.status(400).json({ message: "Author is required" });
       }
       const year = book.year;
       if (!year) {
+        deleteImageIfError(req);
         return res.status(400).json({ message: "Year is required" });
       }
       const genre = book.genre;
       if (!genre) {
+        deleteImageIfError(req);
         return res.status(400).json({ message: "Genre is required" });
       }
       try {
         //resize image
         await sharp(path.join(process.cwd(), req.file.path))
           .resize({
-            width: 206,
-            height: 260,
+            width: 391,
+            height: 456,
           })
           .toFile(
             path.join(process.cwd(), "images", "resized_" + req.file.filename)
@@ -120,6 +127,7 @@ export const bookController = {
         return res.status(404).json({ message: "Book not found" });
       }
       if (existingBook.userId.toString() !== req.auth._id.toString()) {
+        deleteImageIfError(req.file);
         return res
           .status(403)
           .json({ message: "You are not authorized to update" });
@@ -142,8 +150,8 @@ export const bookController = {
           //resize image
           await sharp(path.join(process.cwd(), req.file.path))
             .resize({
-              width: 206,
-              height: 260,
+              width: 391,
+              height: 456,
             })
             .toFile(
               path.join(process.cwd(), "images", "resized_" + req.file.filename)
