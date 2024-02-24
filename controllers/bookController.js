@@ -1,10 +1,13 @@
 import {
+  CloudFrontClient,
+  CreateInvalidationCommand,
+} from "@aws-sdk/client-cloudfront";
+import {
   DeleteObjectCommand,
-  GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { getSignedUrl } from "@aws-sdk/cloudfront-signer";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import asyncHandler from "express-async-handler";
@@ -13,11 +16,10 @@ import BookModel from "../models/bookModel.js";
 
 dotenv.config();
 
-const bucketName = process.env.AWS_BUCKET_NAME;
-const region = process.env.AWS_BUCKET_REGION;
+const bucketName = process.env.AWS_BUCKET_NAMEE;
+const region = process.env.AWS_BUCKET_REGIONN;
 const accessKeyId = process.env.AWS_ACCESS_KEY;
 const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-// console.log({ region, bucketName, accessKeyId, secretAccessKey });
 
 const s3Client = new S3Client({
   region,
@@ -26,12 +28,20 @@ const s3Client = new S3Client({
     secretAccessKey,
   },
 });
-// console.log({ s3Client });
+
+const cloudfront = new CloudFrontClient({
+  region,
+  credentials: {
+    accessKeyId,
+    secretAccessKey,
+  },
+});
+
 const generateFileName = (bytes = 32) =>
   crypto.randomBytes(bytes).toString("hex");
 
 const sendImageToAWSAndGetImageUrl = async (req) => {
-  // console.log(req.file);
+  // Resize the image
   const fileBuffer = await sharp(req.file.buffer)
     .resize({ height: 391, width: 456, fit: "contain" })
     .toBuffer();
@@ -47,37 +57,55 @@ const sendImageToAWSAndGetImageUrl = async (req) => {
 
   // Send the upload to S3
   await s3Client.send(new PutObjectCommand(uploadParams));
-  //generate URL for post created
-  const imageUrl = await getSignedUrl(
-    s3Client,
-    new GetObjectCommand({
-      Bucket: bucketName,
-      Key: fileName,
-    })
-    // { expiresIn: 60 } // 60 seconds
-  );
-  return imageUrl;
+
+  //set the url from cloudfront to expire in 1 minute
+  const imageUrl = `https://d9xqu7rtjlo4f.cloudfront.net/${fileName}`;
+  const signedUrl = getSignedUrl({
+    keyPairId: process.env.CLOUDFRONT_KEYPAIR_ID,
+    privateKey: process.env.CLOUDFRONT_PRIVATE_KEY,
+    url: imageUrl,
+    dateLessThan: new Date(Date.now() + 1000 * 60),
+  });
+  return signedUrl;
 };
 
 const deleteImageFromAws = async (existingBook) => {
-  console.log({ bucketName });
-  console.log("existingBook.imageUrl2: ", existingBook.imageUrl);
-  // console.log({ s3Client });
-
+  const imageName = existingBook.imageUrl.split("?")[0].split("/")[3];
   const deleteParams = {
     Bucket: bucketName,
-    Key: existingBook.imageUrl,
+    Key: imageName,
   };
-
-  const data = await s3Client.send(new DeleteObjectCommand(deleteParams));
-  console.log({ data });
+  //delete the image from s3
+  await s3Client.send(new DeleteObjectCommand(deleteParams));
+  //invalidate the cloudfront cache
+  const cfCommand = new CreateInvalidationCommand({
+    DistributionId: process.env.CLOUDFRONT_DISTRIBUTION_ID,
+    InvalidationBatch: {
+      CallerReference: imageName,
+      Paths: {
+        Quantity: 1,
+        Items: ["/" + imageName],
+      },
+    },
+  });
+  await cloudfront.send(cfCommand);
 };
+
 export const bookController = {
   bestRatingBooks: asyncHandler(async (req, res) => {
     try {
       const bestRatingBooks = await BookModel.find()
         .sort({ averageRating: -1 })
         .limit(3);
+      for (let book of bestRatingBooks) {
+        //set the url from cloudfront to expire in 1 minute
+        book.imageUrl = getSignedUrl({
+          keyPairId: process.env.CLOUDFRONT_KEYPAIR_ID,
+          privateKey: process.env.CLOUDFRONT_PRIVATE_KEY,
+          url: book.imageUrl.split("?")[0],
+          dateLessThan: new Date(Date.now() + 1000 * 60),
+        });
+      }
       return res.status(200).json(bestRatingBooks);
     } catch (err) {
       return res.status(500).json({ message: "Something went wrong" });
@@ -131,22 +159,18 @@ export const bookController = {
       }
       const existingTitle = await BookModel.find({ title: title });
       if (existingTitle && existingTitle.length > 0) {
-        // deleteImageIfError(req);
         return res.status(400).json({ message: "Title already exists" });
       }
       const author = book.author;
       if (!author) {
-        // deleteImageIfError(req.file);
         return res.status(400).json({ message: "Author is required" });
       }
       const year = book.year;
       if (!year) {
-        // deleteImageIfError(req);
         return res.status(400).json({ message: "Year is required" });
       }
       const genre = book.genre;
       if (!genre) {
-        // deleteImageIfError(req);
         return res.status(400).json({ message: "Genre is required" });
       }
 
@@ -164,7 +188,7 @@ export const bookController = {
       });
       return res.status(201).json({ message: "Book created successefully" });
     } catch (err) {
-      // console.log(err);
+      console.log(err);
       return res.status(500).json({ message: "Something went wrong" });
     }
   }),
@@ -175,7 +199,7 @@ export const bookController = {
         return res.status(404).json({ message: "Book not found" });
       }
       if (existingBook.userId.toString() !== req.auth._id.toString()) {
-        deleteImageIfError(req.file);
+        // deleteImageIfError(req.file);
         return res
           .status(403)
           .json({ message: "You are not authorized to update" });
@@ -222,24 +246,13 @@ export const bookController = {
           .json({ message: "You are not authorized to delete" });
       }
       if (existingBook.imageUrl) {
-        // console.log("existingBook.imageUrl1: ", existingBook.imageUrl);
         try {
-          // deleteImageFromAws(existingBook);
-          console.log({ bucketName });
-          console.log("existingBook.imageUrl2: ", existingBook.imageUrl);
-          // console.log({ s3Client });
-
-          const deleteParams = {
-            Bucket: bucketName,
-            Key: existingBook.imageUrl,
-          };
-
-          const data = await s3Client.send(
-            new DeleteObjectCommand(deleteParams)
-          );
-          console.log({ data });
+          deleteImageFromAws(existingBook);
         } catch (err) {
           console.log(err);
+          return res
+            .status(500)
+            .json({ message: "Error deleting image from AWS" });
         }
       }
 
@@ -252,8 +265,18 @@ export const bookController = {
   getAllBooks: asyncHandler(async (req, res) => {
     try {
       const books = await BookModel.find();
+      for (let book of books) {
+        //set the url from cloudfront to expire in 1 minute
+        book.imageUrl = getSignedUrl({
+          keyPairId: process.env.CLOUDFRONT_KEYPAIR_ID,
+          privateKey: process.env.CLOUDFRONT_PRIVATE_KEY,
+          url: book.imageUrl.split("?")[0],
+          dateLessThan: new Date(Date.now() + 1000 * 60),
+        });
+      }
       return res.status(200).json(books);
     } catch (err) {
+      console.log(err);
       return res.status(500).json({ message: "Something went wrong" });
     }
   }),
@@ -263,6 +286,13 @@ export const bookController = {
       if (!existingBook) {
         return res.status(404).json({ message: "Book not found" });
       }
+      //set the url from cloudfront to expire in 1 minute
+      existingBook.imageUrl = getSignedUrl({
+        keyPairId: process.env.CLOUDFRONT_KEYPAIR_ID,
+        privateKey: process.env.CLOUDFRONT_PRIVATE_KEY,
+        url: existingBook.imageUrl.split("?")[0],
+        dateLessThan: new Date(Date.now() + 1000 * 60),
+      });
       return res.status(200).json(existingBook);
     } catch (err) {
       return res.status(500).json({ message: "Something went wrong" });
