@@ -54,7 +54,6 @@ const sendImageToAWSAndGetImageUrl = async (req) => {
     Body: fileBuffer,
     ContentType: req.file.mimetype,
   };
-
   // Send the upload to S3
   await s3Client.send(new PutObjectCommand(uploadParams));
 
@@ -208,8 +207,8 @@ export const bookController = {
       if (req.file) {
         if (existingBook.imageUrl) {
           try {
-            deleteImageFromAws(existingBook);
-            existingBook.imageUrl = sendImageToAWSAndGetImageUrl(req);
+            await deleteImageFromAws(existingBook);
+            existingBook.imageUrl = await sendImageToAWSAndGetImageUrl(req);
             const bookToUpdateWithJoinedFile = JSON.parse(req.body.book);
             existingBook.title = bookToUpdateWithJoinedFile.title;
             existingBook.author = bookToUpdateWithJoinedFile.author;
@@ -247,7 +246,7 @@ export const bookController = {
       }
       if (existingBook.imageUrl) {
         try {
-          deleteImageFromAws(existingBook);
+          await deleteImageFromAws(existingBook);
         } catch (err) {
           console.log(err);
           return res
