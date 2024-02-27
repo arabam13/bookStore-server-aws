@@ -1,0 +1,30 @@
+name: Deploy Node Application
+
+on: 
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+      - name: Login to docker hub
+        run: docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}     
+      - name: Build Docker Image
+        run: docker build -t arabam13/nodejs-app  .
+      - name: Publish Image to docker hub
+        run: docker push arabam13/nodejs-app:latest 
+ 
+  deploy:
+    needs: build
+    runs-on: self-hosted 
+    steps:
+      - name: Pull image from docker hub
+        run: docker pull arabam13/nodejs-app:latest 
+      - name: Delete old container
+        run: docker rm -f nodejs-app-container  
+      - name: Run Docker Container
+        run: docker run -d -p 4000:4000 --name nodejs-app-container -e MONGODB_URI_PROD='${{ secrets.MONGODB_URI_PROD }}' -e JWT_SECRET='${{ secrets.JWT_SECRET }}' -e PORT='${{ secrets.PORT }}' -e AWS_BUCKET_NAMEE='${{ secrets.AWS_BUCKET_NAMEE }}' -e AWS_BUCKET_REGIONN='${{ secrets.AWS_BUCKET_REGIONN }}' -e AWS_ACCESS_KEY='${{ secrets.AWS_ACCESS_KEY }}' -e AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET_ACCESS_KEY }}' -e CLOUDFRONT_DISTRIBUTION_ID='${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}' -e CLOUDFRONT_KEYPAIR_ID='${{ secrets.CLOUDFRONT_KEYPAIR_ID }}' -e CLOUDFRONT_PRIVATE_KEY='${{ secrets.CLOUDFRONT_PRIVATE_KEY }}' arabam13/nodejs-app
